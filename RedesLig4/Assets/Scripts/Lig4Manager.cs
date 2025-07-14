@@ -59,7 +59,7 @@ public class Lig4Manager : MonoBehaviour
 
                 if (VerificarVitoria(linha, coluna, jogadorAtual))
                 {
-                    textoStatus.text = $"Jogador {jogadorAtual} venceu!";
+                    textoStatus.text = $"Jogador {ObterNomeJogador(jogadorAtual)} venceu!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
                     return;
@@ -73,7 +73,7 @@ public class Lig4Manager : MonoBehaviour
                     return;
                 }
 
-                jogadorAtual = 3 - jogadorAtual;
+                jogadorAtual = 3 - jogadorAtual; // troca jogador
                 AtualizarTextoStatus();
                 return;
             }
@@ -84,7 +84,7 @@ public class Lig4Manager : MonoBehaviour
 
     void AtualizarTextoStatus()
     {
-        textoStatus.text = $"Vez do Jogador {jogadorAtual}";
+        textoStatus.text = $"Vez do Jogador {ObterNomeJogador(jogadorAtual)}";
     }
 
     void DesabilitarBotoes()
@@ -155,7 +155,7 @@ public class Lig4Manager : MonoBehaviour
         jogadorAtual = 1;
         jogoAtivo = true;
 
-        // Apaga apenas as peças (tag "Peca")
+        // Apaga as peças (tag "Peca")
         foreach (Transform slot in boardPanel)
         {
             foreach (Transform filho in slot)
@@ -176,5 +176,61 @@ public class Lig4Manager : MonoBehaviour
 
         AtualizarTextoStatus();
         ConfigurarBotoes();
+    }
+
+    public void FazerJogadaRemota(int coluna)
+    {
+        if (!jogoAtivo) return;
+
+        for (int linha = 5; linha >= 0; linha--)
+        {
+            if (grade[linha, coluna] == 0)
+            {
+                grade[linha, coluna] = jogadorAtual;
+
+                int slotIndex = linha * 7 + coluna;
+                Transform slotTransform = boardPanel.GetChild(slotIndex);
+
+                GameObject peca = Instantiate(
+                    jogadorAtual == 1 ? pecaJogador1 : pecaJogador2,
+                    slotTransform
+                );
+
+                peca.transform.localPosition = Vector3.zero;
+                peca.transform.localRotation = Quaternion.identity;
+                peca.transform.localScale = Vector3.one;
+
+                Button btn = slotTransform.GetComponent<Button>();
+                if (btn != null)
+                    btn.interactable = false;
+
+                if (VerificarVitoria(linha, coluna, jogadorAtual))
+                {
+                    textoStatus.text = $"Jogador {ObterNomeJogador(jogadorAtual)} venceu!";
+                    jogoAtivo = false;
+                    DesabilitarBotoes();
+                    return;
+                }
+
+                if (VerificarEmpate())
+                {
+                    textoStatus.text = "Empate!";
+                    jogoAtivo = false;
+                    DesabilitarBotoes();
+                    return;
+                }
+
+                jogadorAtual = 3 - jogadorAtual;
+                AtualizarTextoStatus();
+                return;
+            }
+        }
+
+        Debug.Log("Coluna cheia (remoto).");
+    }
+
+    private string ObterNomeJogador(int jogador)
+    {
+        return jogador == 1 ? "Vermelho" : "Amarelo";
     }
 }
