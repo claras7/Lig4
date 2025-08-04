@@ -12,6 +12,11 @@ public class Lig4Manager : MonoBehaviour
     private int jogadorAtual = 1;
     private bool jogoAtivo = true;
 
+    [Header("Multiplayer")]
+    public TcpServerLig4 servidor;
+    public TcpClientLig4 cliente;
+    public bool ehServidor = true; // Defina manualmente na Unity: true no servidor, false no cliente
+
     void Start()
     {
         ResetarTabuleiro();  // Começa o jogo limpo
@@ -34,6 +39,20 @@ public class Lig4Manager : MonoBehaviour
         if (!jogoAtivo) return;
 
         int coluna = index % 7;
+
+        // Envia jogada para o outro computador
+        if (ehServidor && servidor != null)
+            servidor.EnviarJogada(coluna);
+        else if (!ehServidor && cliente != null)
+            cliente.EnviarJogada(coluna);
+
+        // Faz a jogada localmente (todos PCs chamam isso)
+        FazerJogadaRemota(coluna);
+    }
+
+    public void FazerJogadaRemota(int coluna)
+    {
+        if (!jogoAtivo) return;
 
         for (int linha = 5; linha >= 0; linha--)
         {
@@ -79,7 +98,7 @@ public class Lig4Manager : MonoBehaviour
             }
         }
 
-        Debug.Log("Coluna cheia!");
+        Debug.Log("Coluna cheia (remoto).");
     }
 
     void AtualizarTextoStatus()
@@ -176,57 +195,6 @@ public class Lig4Manager : MonoBehaviour
 
         AtualizarTextoStatus();
         ConfigurarBotoes();
-    }
-
-    public void FazerJogadaRemota(int coluna)
-    {
-        if (!jogoAtivo) return;
-
-        for (int linha = 5; linha >= 0; linha--)
-        {
-            if (grade[linha, coluna] == 0)
-            {
-                grade[linha, coluna] = jogadorAtual;
-
-                int slotIndex = linha * 7 + coluna;
-                Transform slotTransform = boardPanel.GetChild(slotIndex);
-
-                GameObject peca = Instantiate(
-                    jogadorAtual == 1 ? pecaJogador1 : pecaJogador2,
-                    slotTransform
-                );
-
-                peca.transform.localPosition = Vector3.zero;
-                peca.transform.localRotation = Quaternion.identity;
-                peca.transform.localScale = Vector3.one;
-
-                Button btn = slotTransform.GetComponent<Button>();
-                if (btn != null)
-                    btn.interactable = false;
-
-                if (VerificarVitoria(linha, coluna, jogadorAtual))
-                {
-                    textoStatus.text = $"Jogador {ObterNomeJogador(jogadorAtual)} venceu!";
-                    jogoAtivo = false;
-                    DesabilitarBotoes();
-                    return;
-                }
-
-                if (VerificarEmpate())
-                {
-                    textoStatus.text = "Empate!";
-                    jogoAtivo = false;
-                    DesabilitarBotoes();
-                    return;
-                }
-
-                jogadorAtual = 3 - jogadorAtual;
-                AtualizarTextoStatus();
-                return;
-            }
-        }
-
-        Debug.Log("Coluna cheia (remoto).");
     }
 
     private string ObterNomeJogador(int jogador)

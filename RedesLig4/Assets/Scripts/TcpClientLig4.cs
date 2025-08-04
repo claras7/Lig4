@@ -1,35 +1,30 @@
 using System;
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
 
-public class TcpServerLig4 : MonoBehaviour
+public class TcpClientLig4 : MonoBehaviour
 {
     public Lig4Manager lig4Manager;
-    private TcpListener listener;
+    public string ipServidor = "127.0.0.1";
     private TcpClient client;
     private NetworkStream stream;
-    private Thread listenThread;
+    private Thread receiveThread;
 
     void Start()
     {
-        listenThread = new Thread(ListenForClient);
-        listenThread.IsBackground = true;
-        listenThread.Start();
+        receiveThread = new Thread(ConnectAndReceive);
+        receiveThread.IsBackground = true;
+        receiveThread.Start();
     }
 
-    void ListenForClient()
+    void ConnectAndReceive()
     {
         try
         {
-            listener = new TcpListener(IPAddress.Any, 7777);
-            listener.Start();
-            Debug.Log("Aguardando conexão do cliente...");
-            client = listener.AcceptTcpClient();
-            Debug.Log("Cliente conectado!");
-
+            client = new TcpClient(ipServidor, 7777);
+            Debug.Log("Conectado ao servidor!");
             stream = client.GetStream();
 
             byte[] buffer = new byte[1024];
@@ -37,7 +32,7 @@ public class TcpServerLig4 : MonoBehaviour
             {
                 int bytes = stream.Read(buffer, 0, buffer.Length);
                 string mensagem = Encoding.ASCII.GetString(buffer, 0, bytes);
-                Debug.Log("Recebido do cliente: " + mensagem);
+                Debug.Log("Recebido do servidor: " + mensagem);
 
                 if (int.TryParse(mensagem, out int coluna))
                 {
@@ -47,7 +42,7 @@ public class TcpServerLig4 : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogError("Servidor erro: " + ex.Message);
+            Debug.LogError("Cliente erro: " + ex.Message);
         }
     }
 
@@ -62,9 +57,8 @@ public class TcpServerLig4 : MonoBehaviour
 
     void OnApplicationQuit()
     {
-        listenThread?.Abort();
+        receiveThread?.Abort();
         stream?.Close();
         client?.Close();
-        listener?.Stop();
     }
 }
