@@ -8,8 +8,8 @@ public class Lig4Manager : MonoBehaviour
     public Transform boardPanel;
     public Text textoStatus;
 
-    public TcpServerLig4 tcpServer;  // Servidor usa isso
-    public TcpClientLig4 tcpClient;  // Cliente usa isso
+    public TcpServerLig4 tcpServer;  // Para servidor
+    public TcpClientLig4 tcpClient;  // Para cliente
 
     private int[,] grade = new int[6, 7];
     private int jogadorAtual = 1;   // Quem tem o turno agora (1 ou 2)
@@ -19,6 +19,7 @@ public class Lig4Manager : MonoBehaviour
 
     void Start()
     {
+        // Define o jogadorLocal conforme a cor configurada no PlayerInfo
         jogadorLocal = (PlayerInfo.CorDoJogador == "AMARELO") ? 1 : 2;
 
         jogadorAtual = 1; // Amarelo sempre começa
@@ -46,6 +47,7 @@ public class Lig4Manager : MonoBehaviour
 
         int coluna = index % 7;
 
+        // Só permite jogar se for o turno do jogador local
         if (jogadorAtual != jogadorLocal)
         {
             Debug.Log("Não é seu turno.");
@@ -58,12 +60,14 @@ public class Lig4Manager : MonoBehaviour
             return;
         }
 
+        // Executa a jogada local e envia para o adversário
         FazerJogadaLocal(coluna);
     }
 
-    void FazerJogadaLocal(int coluna, bool enviarParaRede = true, int jogador = -1)
+    // Faz a jogada no tabuleiro
+    public void FazerJogadaLocal(int coluna, bool enviarParaRede = true, int jogador = -1)
     {
-        if (jogador == -1) jogador = jogadorAtual;
+        if (jogador == -1) jogador = jogadorAtual; // Se não passar, usa o turno atual
 
         for (int linha = 5; linha >= 0; linha--)
         {
@@ -74,6 +78,7 @@ public class Lig4Manager : MonoBehaviour
                 int slotIndex = linha * 7 + coluna;
                 Transform slotTransform = boardPanel.GetChild(slotIndex);
 
+                // Instancia a peça correta conforme o jogador que fez a jogada
                 GameObject peca = Instantiate(
                     jogador == 1 ? pecaJogador1 : pecaJogador2,
                     slotTransform
@@ -87,39 +92,35 @@ public class Lig4Manager : MonoBehaviour
                 if (btn != null)
                     btn.interactable = false;
 
-                AtualizarTextoStatus();
-
+                // Verifica se ganhou
                 if (VerificarVitoria(linha, coluna, jogador))
                 {
                     textoStatus.text = $"Jogador {ObterNomeJogador(jogador)} venceu!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
-                    if (enviarParaRede)
-                    {
-                        EnviarMensagemRede($"VENCEU:{jogador}");
-                    }
                     return;
                 }
 
+                // Verifica empate
                 if (VerificarEmpate())
                 {
                     textoStatus.text = "Empate!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
-                    if (enviarParaRede)
-                    {
-                        EnviarMensagemRede("EMPATE");
-                    }
                     return;
                 }
 
+                // Se for jogada local, envia para o outro
                 if (enviarParaRede)
                 {
                     EnviarJogadaRede(coluna);
                 }
 
-                jogadorAtual = 3 - jogadorAtual;
+                // Troca turno *depois* de processar tudo
+                jogadorAtual = 3 - jogador;
+
                 AtualizarTextoStatus();
+
                 return;
             }
         }
@@ -127,6 +128,7 @@ public class Lig4Manager : MonoBehaviour
         Debug.Log("Coluna cheia.");
     }
 
+    // Recebe jogada remota
     public void FazerJogadaRemota(int coluna)
     {
         if (!jogoAtivo) return;
@@ -134,58 +136,26 @@ public class Lig4Manager : MonoBehaviour
         int jogadorRemoto = jogadorLocal == 1 ? 2 : 1;
         Debug.Log($"FazerJogadaRemota chamada! coluna = {coluna} jogadorRemoto = {jogadorRemoto}");
 
+        // Aqui avisa que é jogada recebida, então não envia de novo
         FazerJogadaLocal(coluna, false, jogadorRemoto);
     }
 
+    // Envia jogada para o outro jogador via rede
     void EnviarJogadaRede(int coluna)
     {
         if (jogadorLocal == 1)
         {
-            tcpServer?.EnviarJogada(coluna);
-        }
-        else
-        {
-            tcpClient?.EnviarJogada(coluna);
-        }
-    }
-
-    void EnviarMensagemRede(string mensagem)
-    {
-        if (jogadorLocal == 1)
-        {
-            tcpServer?.EnviarMensagem(mensagem);
-        }
-        else
-        {
-            tcpClient?.EnviarMensagem(mensagem);
-        }
-    }
-
-    public void ProcessarMensagemRecebida(string mensagem)
-    {
-        if (mensagem.StartsWith("VENCEU:"))
-        {
-            string numJogadorStr = mensagem.Substring(7);
-            if (int.TryParse(numJogadorStr, out int jogador))
+            if (tcpServer != null)
             {
-                textoStatus.text = $"Jogador {ObterNomeJogador(jogador)} venceu!";
-                jogoAtivo = false;
-                DesabilitarBotoes();
+                tcpServer.EnviarJogada(coluna);
             }
         }
-        else if (mensagem == "EMPATE")
+        else
         {
-            textoStatus.text = "Empate!";
-            jogoAtivo = false;
-            DesabilitarBotoes();
-        }
-        else if (mensagem == "RESET")
-        {
-            ResetarTabuleiro();
-        }
-        else if (int.TryParse(mensagem, out int coluna))
-        {
-            FazerJogadaRemota(coluna);
+            if (tcpClient != null)
+            {
+                tcpClient.EnviarJogada(coluna);
+            }
         }
     }
 
@@ -216,10 +186,10 @@ public class Lig4Manager : MonoBehaviour
     {
         int[][] direcoes = new int[][]
         {
-            new int[] {0, 1},
-            new int[] {1, 0},
-            new int[] {1, 1},
-            new int[] {1, -1}
+            new int[] {0, 1},   // horizontal
+            new int[] {1, 0},   // vertical
+            new int[] {1, 1},   // diagonal \
+            new int[] {1, -1}   // diagonal /
         };
 
         foreach (var dir in direcoes)
@@ -249,31 +219,36 @@ public class Lig4Manager : MonoBehaviour
 
     public void ResetarTabuleiro()
     {
-        grade = new int[6, 7];
-        jogadorAtual = 1;
-        jogoAtivo = true;
+        // Limpa a matriz
+        for (int linha = 0; linha < 6; linha++)
+        {
+            for (int col = 0; col < 7; col++)
+            {
+                grade[linha, col] = 0;
+            }
+        }
 
+        // Remove as peças da tela
         foreach (Transform slot in boardPanel)
-            foreach (Transform filho in slot)
-                if (filho.CompareTag("Peca"))
-                    Destroy(filho.gameObject);
+        {
+            foreach (Transform child in slot)
+            {
+                Destroy(child.gameObject);
+            }
 
-        Button[] botoes = boardPanel.GetComponentsInChildren<Button>();
-        foreach (var btn in botoes)
-            btn.interactable = true;
+            // Reabilita o botão
+            Button btn = slot.GetComponent<Button>();
+            if (btn != null)
+                btn.interactable = true;
+        }
 
+        jogoAtivo = true;
+        jogadorAtual = 1;
         AtualizarTextoStatus();
     }
-    
-    private string ObterNomeJogador(int jogador)
+
+    string ObterNomeJogador(int jogador)
     {
         return jogador == 1 ? "Amarelo" : "Vermelho";
-    }
-
-    // Método para chamar via botão na UI para resetar e sincronizar
-    public void BotaoResetar()
-    {
-        ResetarTabuleiro();
-        EnviarMensagemRede("RESET");
     }
 }
