@@ -1495,6 +1495,8 @@ MonoBehaviour:
   pecaJogador2: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
   boardPanel: {fileID: 1660338202}
   textoStatus: {fileID: 2043139647}
+  tcpServer: {fileID: 0}
+  tcpClient: {fileID: 0}
 --- !u!1001 &649882157
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4460,6 +4462,56 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 583e0e528dc5f6640a7d407a051a2609, type: 3}
+--- !u!1 &1674224963
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1674224965}
+  - component: {fileID: 1674224964}
+  m_Layer: 0
+  m_Name: Lig4Manager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1674224964
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674224963}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61462df9914e50447bf79e2d0a2f2dd1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pecaJogador1: {fileID: 1294410569580857714, guid: b01b6b31a142790458c85f09823ae771, type: 3}
+  pecaJogador2: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
+  boardPanel: {fileID: 1660338202}
+  textoStatus: {fileID: 2043139647}
+  tcpServer: {fileID: 1753930976}
+  tcpClient: {fileID: 0}
+--- !u!4 &1674224965
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674224963}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1676894098
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -4586,6 +4638,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1dee50c18087e7f47970174f32ca883e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  porta: 7777
+  lig4Manager: {fileID: 1674224964}
 --- !u!4 &1753930977
 Transform:
   m_ObjectHideFlags: 0
@@ -5476,3 +5530,4 @@ SceneRoots:
   - {fileID: 1948336780}
   - {fileID: 1753930977}
   - {fileID: 117972895}
+  - {fileID: 1674224965}

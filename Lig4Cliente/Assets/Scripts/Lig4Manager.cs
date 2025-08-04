@@ -277,4 +277,3 @@ public class Lig4Manager : MonoBehaviour
         EnviarMensagemRede("RESET");
     }
 }
-

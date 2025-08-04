@@ -1,4 +1,3 @@
-using System;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -6,59 +5,80 @@ using UnityEngine;
 
 public class TcpClientLig4 : MonoBehaviour
 {
-    public Lig4Manager lig4Manager;
-    public string ipServidor = "127.0.0.1";
-    private TcpClient client;
+    public string ipServidor = "127.0.0.1"; // IP do servidor
+    public int porta = 7777;
+    private TcpClient cliente;
     private NetworkStream stream;
-    private Thread receiveThread;
+    private Thread threadReceber;
+
+    public Lig4Manager lig4Manager; // Arraste no Inspector
 
     void Start()
     {
-        receiveThread = new Thread(ConnectAndReceive);
-        receiveThread.IsBackground = true;
-        receiveThread.Start();
+        threadReceber = new Thread(ConectarServidor);
+        threadReceber.Start();
     }
 
-    void ConnectAndReceive()
+    void ConectarServidor()
     {
         try
         {
-            client = new TcpClient(ipServidor, 7777);
+            cliente = new TcpClient();
+            cliente.Connect(ipServidor, porta);
+            stream = cliente.GetStream();
             Debug.Log("Conectado ao servidor!");
-            stream = client.GetStream();
 
             byte[] buffer = new byte[1024];
             while (true)
             {
-                int bytes = stream.Read(buffer, 0, buffer.Length);
-                string mensagem = Encoding.ASCII.GetString(buffer, 0, bytes);
-                Debug.Log("Recebido do servidor: " + mensagem);
-
-                if (int.TryParse(mensagem, out int coluna))
+                int bytesLidos = stream.Read(buffer, 0, buffer.Length);
+                if (bytesLidos > 0)
                 {
-                    UnityMainThreadDispatcher.Enqueue(() => lig4Manager.FazerJogadaRemota(coluna));
+                    string mensagem = Encoding.UTF8.GetString(buffer, 0, bytesLidos);
+                    Debug.Log("Recebido do servidor: " + mensagem);
+
+                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                    {
+                        lig4Manager.ProcessarMensagemRecebida(mensagem);
+                    });
                 }
             }
         }
-        catch (Exception ex)
+        catch (SocketException ex)
         {
-            Debug.LogError("Cliente erro: " + ex.Message);
+            Debug.Log("Erro cliente: " + ex.Message);
         }
     }
 
     public void EnviarJogada(int coluna)
     {
-        if (client != null && client.Connected)
+        if (stream != null && stream.CanWrite)
         {
-            byte[] data = Encoding.ASCII.GetBytes(coluna.ToString());
-            stream.Write(data, 0, data.Length);
+            byte[] dados = Encoding.UTF8.GetBytes(coluna.ToString());
+            stream.Write(dados, 0, dados.Length);
+            stream.Flush();
+            Debug.Log("Enviado para servidor: " + coluna);
         }
     }
 
-    void OnApplicationQuit()
+    public void EnviarMensagem(string mensagem)
     {
-        receiveThread?.Abort();
+        if (stream != null && stream.CanWrite)
+        {
+            byte[] dados = Encoding.UTF8.GetBytes(mensagem);
+            stream.Write(dados, 0, dados.Length);
+            stream.Flush();
+            Debug.Log("Enviado para servidor: " + mensagem);
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
         stream?.Close();
-        client?.Close();
+        cliente?.Close();
+        threadReceber?.Abort();
     }
 }
+
+
+

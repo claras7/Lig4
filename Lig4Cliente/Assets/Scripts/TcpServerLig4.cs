@@ -85,3 +85,7 @@ public class TcpServerLig4 : MonoBehaviour
         threadEscuta?.Abort();
     }
 }
+
+
+
+

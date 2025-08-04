@@ -1,37 +1,32 @@
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
 
-public class TcpServerLig4 : MonoBehaviour
+public class TcpClientLig4 : MonoBehaviour
 {
+    public string ipServidor = "127.0.0.1"; // IP do servidor
     public int porta = 7777;
-    private TcpListener listener;
-    private TcpClient clienteConectado;
+    private TcpClient cliente;
     private NetworkStream stream;
-    private Thread threadEscuta;
+    private Thread threadReceber;
 
     public Lig4Manager lig4Manager; // Arraste no Inspector
 
     void Start()
     {
-        threadEscuta = new Thread(OuvirCliente);
-        threadEscuta.Start();
+        threadReceber = new Thread(ConectarServidor);
+        threadReceber.Start();
     }
 
-    void OuvirCliente()
+    void ConectarServidor()
     {
         try
         {
-            listener = new TcpListener(IPAddress.Any, porta);
-            listener.Start();
-            Debug.Log("Servidor aguardando conexão...");
-
-            clienteConectado = listener.AcceptTcpClient();
-            Debug.Log("Cliente conectado!");
-
-            stream = clienteConectado.GetStream();
+            cliente = new TcpClient();
+            cliente.Connect(ipServidor, porta);
+            stream = cliente.GetStream();
+            Debug.Log("Conectado ao servidor!");
 
             byte[] buffer = new byte[1024];
             while (true)
@@ -40,7 +35,7 @@ public class TcpServerLig4 : MonoBehaviour
                 if (bytesLidos > 0)
                 {
                     string mensagem = Encoding.UTF8.GetString(buffer, 0, bytesLidos);
-                    Debug.Log("Recebido do cliente: " + mensagem);
+                    Debug.Log("Recebido do servidor: " + mensagem);
 
                     UnityMainThreadDispatcher.Instance().Enqueue(() =>
                     {
@@ -51,7 +46,7 @@ public class TcpServerLig4 : MonoBehaviour
         }
         catch (SocketException ex)
         {
-            Debug.Log("Erro servidor: " + ex.Message);
+            Debug.Log("Erro cliente: " + ex.Message);
         }
     }
 
@@ -62,7 +57,7 @@ public class TcpServerLig4 : MonoBehaviour
             byte[] dados = Encoding.UTF8.GetBytes(coluna.ToString());
             stream.Write(dados, 0, dados.Length);
             stream.Flush();
-            Debug.Log("Enviado para cliente: " + coluna);
+            Debug.Log("Enviado para servidor: " + coluna);
         }
     }
 
@@ -73,15 +68,16 @@ public class TcpServerLig4 : MonoBehaviour
             byte[] dados = Encoding.UTF8.GetBytes(mensagem);
             stream.Write(dados, 0, dados.Length);
             stream.Flush();
-            Debug.Log("Enviado para cliente: " + mensagem);
+            Debug.Log("Enviado para servidor: " + mensagem);
         }
     }
 
     private void OnApplicationQuit()
     {
         stream?.Close();
-        clienteConectado?.Close();
-        listener?.Stop();
-        threadEscuta?.Abort();
+        cliente?.Close();
+        threadReceber?.Abort();
     }
 }
+
+
