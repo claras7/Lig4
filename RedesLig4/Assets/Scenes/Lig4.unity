@@ -4491,8 +4491,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61462df9914e50447bf79e2d0a2f2dd1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  pecaJogador1: {fileID: 1294410569580857714, guid: b01b6b31a142790458c85f09823ae771, type: 3}
-  pecaJogador2: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
+  pecaJogador1: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
+  pecaJogador2: {fileID: 1294410569580857714, guid: b01b6b31a142790458c85f09823ae771, type: 3}
   boardPanel: {fileID: 1660338202}
   textoStatus: {fileID: 2043139647}
   tcpServer: {fileID: 1753930976}

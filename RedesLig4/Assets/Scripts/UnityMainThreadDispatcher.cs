@@ -5,15 +5,15 @@ using UnityEngine;
 public class UnityMainThreadDispatcher : MonoBehaviour
 {
     private static readonly Queue<Action> _executionQueue = new Queue<Action>();
-
     private static UnityMainThreadDispatcher _instance;
 
     public static UnityMainThreadDispatcher Instance()
     {
         if (_instance == null)
         {
-            Debug.LogError("UnityMainThreadDispatcher não foi inicializado. Por favor, adicione o script a um GameObject na cena.");
-            return null;
+            var go = new GameObject("UnityMainThreadDispatcher");
+            _instance = go.AddComponent<UnityMainThreadDispatcher>();
+            DontDestroyOnLoad(go);
         }
         return _instance;
     }
@@ -33,23 +33,24 @@ public class UnityMainThreadDispatcher : MonoBehaviour
 
     public void Enqueue(Action action)
     {
-        if (action == null)
-            throw new ArgumentNullException(nameof(action));
-
-        lock (_executionQueue)
-        {
-            _executionQueue.Enqueue(action);
-        }
+        if (action == null) throw new ArgumentNullException(nameof(action));
+        lock (_executionQueue) { _executionQueue.Enqueue(action); }
     }
 
     void Update()
     {
-        lock (_executionQueue)
+        // Execute all actions queued by background threads
+        Action action = null;
+        while (true)
         {
-            while (_executionQueue.Count > 0)
+            lock (_executionQueue)
             {
-                _executionQueue.Dequeue()?.Invoke();
+                if (_executionQueue.Count > 0) action = _executionQueue.Dequeue();
+                else action = null;
             }
+            if (action == null) break;
+            try { action.Invoke(); }
+            catch (Exception ex) { Debug.LogError("Erro em ação enfileirada: " + ex); }
         }
     }
 }

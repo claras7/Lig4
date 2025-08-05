@@ -159,6 +159,35 @@ public class Lig4Manager : MonoBehaviour
         }
     }
 
+    // --- NOVO: processa mensagens vindas da rede (chamado por TcpClient/TcpServer via dispatcher)
+    public void ProcessarMensagemRecebida(string mensagem)
+    {
+        if (string.IsNullOrEmpty(mensagem)) return;
+
+        // Pode vir múltiplas mensagens concatenadas. Separate por nova linha e por espaços.
+        string[] tokens = mensagem.Split(new char[] { '\n', '\r', ';', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+        foreach (var t in tokens)
+        {
+            string s = t.Trim();
+            if (int.TryParse(s, out int coluna))
+            {
+                // Segurança: validar intervalo
+                if (coluna >= 0 && coluna < 7)
+                {
+                    FazerJogadaRemota(coluna);
+                }
+                else
+                {
+                    Debug.LogWarning("Coluna recebida fora do intervalo: " + coluna);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Mensagem de rede inválida (não é número): " + s);
+            }
+        }
+    }
+
     void AtualizarTextoStatus()
     {
         if (!jogoAtivo) return;
@@ -252,4 +281,3 @@ public class Lig4Manager : MonoBehaviour
         return jogador == 1 ? "Amarelo" : "Vermelho";
     }
 }
-
