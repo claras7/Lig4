@@ -11,120 +11,113 @@ public class TcpServerLig4 : MonoBehaviour
     private TcpListener listener;
     private TcpClient clienteConectado;
     private NetworkStream stream;
+    private Thread threadAceitar;
     private Thread threadEscuta;
-    private volatile bool rodando = false;
 
-    public Lig4Manager lig4Manager; // Arraste no Inspector
+    public Lig4Manager lig4Manager;
 
     void Start()
     {
-        threadEscuta = new Thread(OuvirCliente);
-        threadEscuta.IsBackground = true;
-        rodando = true;
-        threadEscuta.Start();
+        if (lig4Manager == null) Debug.LogError("Arraste o Lig4Manager no Inspector do TcpServerLig4.");
+        threadAceitar = new Thread(StartListening);
+        threadAceitar.IsBackground = true;
+        threadAceitar.Start();
     }
 
-    void OuvirCliente()
+    void StartListening()
     {
         try
         {
             listener = new TcpListener(IPAddress.Any, porta);
             listener.Start();
-            Debug.Log("Servidor aguardando conexão...");
+            Debug.Log("Servidor TCP aguardando conexão na porta " + porta);
 
             clienteConectado = listener.AcceptTcpClient();
-            Debug.Log("Cliente conectado!");
-
             stream = clienteConectado.GetStream();
+            Debug.Log("Cliente conectado ao servidor.");
 
-            byte[] buffer = new byte[1024];
-            while (rodando && clienteConectado != null && clienteConectado.Connected)
-            {
-                try
-                {
-                    if (!stream.DataAvailable)
-                    {
-                        Thread.Sleep(10);
-                        continue;
-                    }
-
-                    int bytesLidos = stream.Read(buffer, 0, buffer.Length);
-                    if (bytesLidos > 0)
-                    {
-                        string mensagem = Encoding.UTF8.GetString(buffer, 0, bytesLidos);
-                        Debug.Log("Recebido do cliente: " + mensagem);
-
-                        UnityMainThreadDispatcher.Instance().Enqueue(() =>
-                        {
-                            if (lig4Manager != null)
-                                lig4Manager.ProcessarMensagemRecebida(mensagem);
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.Log("Erro servidor (leitura): " + ex.Message);
-                    break;
-                }
-            }
+            threadEscuta = new Thread(EscutarCliente);
+            threadEscuta.IsBackground = true;
+            threadEscuta.Start();
         }
-        catch (SocketException ex)
+        catch (Exception ex)
         {
-            Debug.Log("Erro servidor (aceitar): " + ex.Message);
-        }
-        finally
-        {
-            Fechar();
+            Debug.LogError("Erro servidor: " + ex);
         }
     }
 
+    void EscutarCliente()
+    {
+        byte[] buffer = new byte[1024];
+        var sb = new StringBuilder();
+        while (true)
+        {
+            try
+            {
+                int bytes = stream.Read(buffer, 0, buffer.Length);
+                if (bytes == 0) { Debug.Log("Cliente desconectou."); break; }
+                string msg = Encoding.UTF8.GetString(buffer, 0, bytes);
+                Debug.Log("Servidor recebeu bruto: " + msg);
+
+                sb.Append(msg);
+                // processa mensagens terminadas em '\n'
+                string all = sb.ToString();
+                int idx;
+                while ((idx = all.IndexOf('\n')) >= 0)
+                {
+                    string line = all.Substring(0, idx).Trim();
+                    all = all.Substring(idx + 1);
+                    var captured = line;
+                    UnityMainThreadDispatcher.Instance()?.Enqueue(() =>
+                    {
+                        // Nesse projeto: o Lig4Manager espera receber apenas a coluna (ex: "3")
+                        // ou mensagens especiais como "WIN|1"
+                        lig4Manager.ProcessarMensagemRecebida(captured);
+                    });
+                }
+                sb.Clear();
+                sb.Append(all);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Erro leitura servidor: " + ex);
+                break;
+            }
+        }
+    }
+
+    // Chamado pelo Lig4Manager quando o servidor (local) precisa enviar a jogada ao cliente
     public void EnviarJogada(int coluna)
     {
-        try
-        {
-            if (stream != null && stream.CanWrite)
-            {
-                byte[] dados = Encoding.UTF8.GetBytes(coluna.ToString());
-                stream.Write(dados, 0, dados.Length);
-                stream.Flush();
-                Debug.Log("Enviado para cliente: " + coluna);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.Log("Erro ao enviar (servidor): " + ex.Message);
-        }
+        SendToClient($"{coluna}\n");
     }
 
-    public void EnviarMensagem(string mensagem)
+    // Opcional: enviar notificação explícita de vitória
+    public void EnviarVitoria(int jogador)
+    {
+        SendToClient($"WIN|{jogador}\n");
+    }
+
+    public void SendToClient(string mensagem)
     {
         try
         {
-            if (stream != null && stream.CanWrite)
-            {
-                byte[] dados = Encoding.UTF8.GetBytes(mensagem);
-                stream.Write(dados, 0, dados.Length);
-                stream.Flush();
-                Debug.Log("Enviado para cliente: " + mensagem);
-            }
+            if (stream == null) { Debug.LogWarning("Stream nulo (cliente não conectado)."); return; }
+            byte[] data = Encoding.UTF8.GetBytes(mensagem);
+            stream.Write(data, 0, data.Length);
+            stream.Flush();
+            Debug.Log("Servidor enviou: " + mensagem.Trim());
         }
         catch (Exception ex)
         {
-            Debug.Log("Erro ao enviar mensagem (servidor): " + ex.Message);
+            Debug.LogError("Erro envio servidor: " + ex);
         }
-    }
-
-    void Fechar()
-    {
-        rodando = false;
-        try { stream?.Close(); } catch { }
-        try { clienteConectado?.Close(); } catch { }
-        try { listener?.Stop(); } catch { }
     }
 
     private void OnApplicationQuit()
     {
-        Fechar();
-        try { threadEscuta?.Interrupt(); } catch { }
+        try { stream?.Close(); clienteConectado?.Close(); listener?.Stop(); }
+        catch { }
     }
 }
+

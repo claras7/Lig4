@@ -8,20 +8,19 @@ public class Lig4Manager : MonoBehaviour
     public Transform boardPanel;
     public Text textoStatus;
 
-    public TcpServerLig4 tcpServer;  // Para servidor
-    public TcpClientLig4 tcpClient;  // Para cliente
+    public TcpServerLig4 tcpServer;  // Para servidor (opcional)
+    public TcpClientLig4 tcpClient;  // Para cliente (opcional)
 
     private int[,] grade = new int[6, 7];
     private int jogadorAtual = 1;   // Quem tem o turno agora (1 ou 2)
     private bool jogoAtivo = true;
 
-    private int jogadorLocal = 1;  // 1 = Amarelo (Servidor), 2 = Vermelho (Cliente)
+    // 1 = Amarelo (Servidor), 2 = Vermelho (Cliente)
+    private int jogadorLocal = 1;
 
     void Start()
     {
-        // Define o jogadorLocal conforme a cor configurada no PlayerInfo
         jogadorLocal = (PlayerInfo.CorDoJogador == "AMARELO") ? 1 : 2;
-
         jogadorAtual = 1; // Amarelo sempre começa
 
         ResetarTabuleiro();
@@ -65,8 +64,11 @@ public class Lig4Manager : MonoBehaviour
     }
 
     // Faz a jogada no tabuleiro
+    // enviarParaRede = true quando é jogada iniciada localmente
     public void FazerJogadaLocal(int coluna, bool enviarParaRede = true, int jogador = -1)
     {
+        if (!jogoAtivo) return;
+
         if (jogador == -1) jogador = jogadorAtual; // Se não passar, usa o turno atual
 
         for (int linha = 5; linha >= 0; linha--)
@@ -95,25 +97,41 @@ public class Lig4Manager : MonoBehaviour
                 // Verifica se ganhou
                 if (VerificarVitoria(linha, coluna, jogador))
                 {
+                    // IMPORTANTE: enviar a jogada **antes** de retornar, para que o outro lado
+                    // receba a peça final e também finalize a partida.
+                    if (enviarParaRede)
+                    {
+                        EnviarJogada(coluna);
+
+                        // Opcional: enviar mensagem explícita de vitória (redundância)
+                        // Se preferir, comente a linha abaixo. Os scripts TcpServer/Client
+                        // já têm EnviarVitoria(jogador).
+                        if (jogadorLocal == 1 && tcpServer != null) tcpServer.EnviarVitoria(jogador);
+                        if (jogadorLocal == 2 && tcpClient != null) tcpClient.EnviarVitoria(jogador);
+                    }
+
                     textoStatus.text = $"Jogador {ObterNomeJogador(jogador)} venceu!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
+                    Debug.Log($"VITÓRIA detectada localmente: jogador {jogador}");
                     return;
                 }
 
                 // Verifica empate
                 if (VerificarEmpate())
                 {
+                    // enviar empate é opcional; aqui apenas atualiza local e desliga
                     textoStatus.text = "Empate!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
+                    if (enviarParaRede) EnviarJogada(coluna); // envia a última peça mesmo em empate
                     return;
                 }
 
                 // Se for jogada local, envia para o outro
                 if (enviarParaRede)
                 {
-                    EnviarJogadaRede(coluna);
+                    EnviarJogada(coluna);
                 }
 
                 // Troca turno *depois* de processar tudo
@@ -136,18 +154,23 @@ public class Lig4Manager : MonoBehaviour
         int jogadorRemoto = jogadorLocal == 1 ? 2 : 1;
         Debug.Log($"FazerJogadaRemota chamada! coluna = {coluna} jogadorRemoto = {jogadorRemoto}");
 
-        // Aqui avisa que é jogada recebida, então não envia de novo
+        // Não reenviamos (enviarParaRede = false)
         FazerJogadaLocal(coluna, false, jogadorRemoto);
     }
 
     // Envia jogada para o outro jogador via rede
-    void EnviarJogadaRede(int coluna)
+    void EnviarJogada(int coluna)
     {
         if (jogadorLocal == 1)
         {
             if (tcpServer != null)
             {
                 tcpServer.EnviarJogada(coluna);
+                Debug.Log($"Lig4Manager: enviado (server) coluna {coluna}");
+            }
+            else
+            {
+                Debug.LogWarning("tcpServer == null, não enviou jogada.");
             }
         }
         else
@@ -155,23 +178,52 @@ public class Lig4Manager : MonoBehaviour
             if (tcpClient != null)
             {
                 tcpClient.EnviarJogada(coluna);
+                Debug.Log($"Lig4Manager: enviado (client) coluna {coluna}");
+            }
+            else
+            {
+                Debug.LogWarning("tcpClient == null, não enviou jogada.");
             }
         }
     }
 
-    // --- NOVO: processa mensagens vindas da rede (chamado por TcpClient/TcpServer via dispatcher)
+    // --- Processa mensagens vindas da rede (chamado por TcpClient/TcpServer via dispatcher)
+    // Pode receber:
+    //  - "3"            -> coluna 3
+    //  - "WIN|1"        -> vitória jogador 1
+    // Pode vir concatenado; separa por '\n', '\r', ';' e espaços.
     public void ProcessarMensagemRecebida(string mensagem)
     {
         if (string.IsNullOrEmpty(mensagem)) return;
 
-        // Pode vir múltiplas mensagens concatenadas. Separate por nova linha e por espaços.
+        // Divide por linhas / delimitadores comuns
         string[] tokens = mensagem.Split(new char[] { '\n', '\r', ';', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+
         foreach (var t in tokens)
         {
             string s = t.Trim();
+            if (string.IsNullOrEmpty(s)) continue;
+
+            // Caso WIN|x
+            if (s.StartsWith("WIN|"))
+            {
+                string[] parts = s.Split('|');
+                if (parts.Length >= 2 && int.TryParse(parts[1], out int vencedor))
+                {
+                    Debug.Log($"ProcessarMensagemRecebida: WIN recebido -> jogador {vencedor}");
+                    AplicarVitoriaRemota(vencedor);
+                    continue;
+                }
+                else
+                {
+                    Debug.LogWarning("ProcessarMensagemRecebida: tag WIN mal formada: " + s);
+                    continue;
+                }
+            }
+
+            // Se for um número (coluna)
             if (int.TryParse(s, out int coluna))
             {
-                // Segurança: validar intervalo
                 if (coluna >= 0 && coluna < 7)
                 {
                     FazerJogadaRemota(coluna);
@@ -183,9 +235,20 @@ public class Lig4Manager : MonoBehaviour
             }
             else
             {
-                Debug.LogWarning("Mensagem de rede inválida (não é número): " + s);
+                Debug.LogWarning("Mensagem de rede inválida (não é número nem WIN): " + s);
             }
         }
+    }
+
+    // Quando receber WIN do outro lado, aplica estado de vitória aqui
+    void AplicarVitoriaRemota(int vencedor)
+    {
+        // Pode ser que o último movimento que causou a vitória já tenha sido aplicado
+        // (se vocês receberam a coluna antes). Mas garantir que o painel/status seja mostrado.
+        textoStatus.text = $"Jogador {ObterNomeJogador(vencedor)} venceu!";
+        jogoAtivo = false;
+        DesabilitarBotoes();
+        Debug.Log($"AplicarVitoriaRemota: jogador {vencedor} venceu (recebido pela rede)");
     }
 
     void AtualizarTextoStatus()
