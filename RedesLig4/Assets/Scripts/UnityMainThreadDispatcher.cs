@@ -5,52 +5,48 @@ using UnityEngine;
 public class UnityMainThreadDispatcher : MonoBehaviour
 {
     private static readonly Queue<Action> _executionQueue = new Queue<Action>();
-    private static UnityMainThreadDispatcher _instance;
+    private static UnityMainThreadDispatcher _instance = null;
 
     public static UnityMainThreadDispatcher Instance()
+{
+    if (_instance == null)
     {
+        _instance = FindFirstObjectByType<UnityMainThreadDispatcher>(); // novo método
         if (_instance == null)
         {
-            var go = new GameObject("UnityMainThreadDispatcher");
-            _instance = go.AddComponent<UnityMainThreadDispatcher>();
-            DontDestroyOnLoad(go);
+            Debug.LogError("UnityMainThreadDispatcher não foi inicializado. Por favor, adicione o script a um GameObject na cena.");
+            return null;
         }
-        return _instance;
     }
+    return _instance;
+}
+
 
     void Awake()
     {
-        if (_instance == null)
+        if (_instance == null) _instance = this;
+    }
+
+    void Update()
+    {
+        lock (_executionQueue)
         {
-            _instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else if (_instance != this)
-        {
-            Destroy(gameObject);
+            while (_executionQueue.Count > 0)
+            {
+                var action = _executionQueue.Dequeue();
+                try { action?.Invoke(); }
+                catch (Exception ex) { Debug.LogError("Erro em ação enfileirada: " + ex); }
+            }
         }
     }
 
     public void Enqueue(Action action)
     {
-        if (action == null) throw new ArgumentNullException(nameof(action));
-        lock (_executionQueue) { _executionQueue.Enqueue(action); }
-    }
-
-    void Update()
-    {
-        // Execute all actions queued by background threads
-        Action action = null;
-        while (true)
+        if (action == null) return;
+        lock (_executionQueue)
         {
-            lock (_executionQueue)
-            {
-                if (_executionQueue.Count > 0) action = _executionQueue.Dequeue();
-                else action = null;
-            }
-            if (action == null) break;
-            try { action.Invoke(); }
-            catch (Exception ex) { Debug.LogError("Erro em ação enfileirada: " + ex); }
+            _executionQueue.Enqueue(action);
         }
     }
 }
+

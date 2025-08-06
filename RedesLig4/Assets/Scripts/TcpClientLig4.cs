@@ -6,120 +6,99 @@ using UnityEngine;
 
 public class TcpClientLig4 : MonoBehaviour
 {
-    public string ipServidor = "127.0.0.1"; // IP do servidor
+    public string ipServidor = "127.0.0.1";
     public int porta = 7777;
-    private TcpClient cliente;
+    private TcpClient client;
     private NetworkStream stream;
-    private Thread threadReceber;
-    private volatile bool rodando = false;
+    private Thread threadEscuta;
 
-    public Lig4Manager lig4Manager; // Arraste no Inspector
+    public Lig4Manager lig4Manager;
 
     void Start()
     {
-        threadReceber = new Thread(ConectarServidor);
-        threadReceber.IsBackground = true;
-        rodando = true;
-        threadReceber.Start();
+        if (lig4Manager == null) Debug.LogError("Arraste o Lig4Manager no Inspector do TcpClientLig4.");
+        ConnectToServer();
     }
 
-    void ConectarServidor()
+    public void ConnectToServer()
     {
-        try
+        threadEscuta = new Thread(() =>
         {
-            cliente = new TcpClient();
-            cliente.Connect(ipServidor, porta);
-            stream = cliente.GetStream();
-            Debug.Log("Conectado ao servidor!");
-
-            byte[] buffer = new byte[1024];
-            while (rodando && cliente != null && cliente.Connected)
+            try
             {
-                try
+                client = new TcpClient();
+                client.Connect(ipServidor, porta);
+                stream = client.GetStream();
+                Debug.Log("Cliente conectado ao servidor " + ipServidor + ":" + porta);
+
+                byte[] buffer = new byte[1024];
+                var sb = new System.Text.StringBuilder();
+                while (true)
                 {
-                    if (!stream.DataAvailable)
-                    {
-                        Thread.Sleep(10);
-                        continue;
-                    }
+                    int bytes = stream.Read(buffer, 0, buffer.Length);
+                    if (bytes == 0) { Debug.Log("Servidor desconectou."); break; }
+                    string msg = Encoding.UTF8.GetString(buffer, 0, bytes);
+                    Debug.Log("Cliente recebeu bruto: " + msg);
 
-                    int bytesLidos = stream.Read(buffer, 0, buffer.Length);
-                    if (bytesLidos > 0)
+                    sb.Append(msg);
+                    string all = sb.ToString();
+                    int idx;
+                    while ((idx = all.IndexOf('\n')) >= 0)
                     {
-                        string mensagem = Encoding.UTF8.GetString(buffer, 0, bytesLidos);
-                        Debug.Log("Recebido do servidor: " + mensagem);
-
-                        // Enqueue para thread principal usando a instância lig4Manager
-                        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                        string line = all.Substring(0, idx).Trim();
+                        all = all.Substring(idx + 1);
+                        var captured = line;
+                        UnityMainThreadDispatcher.Instance()?.Enqueue(() =>
                         {
-                            if (lig4Manager != null)
-                                lig4Manager.ProcessarMensagemRecebida(mensagem);
+                            // Delegate para o Lig4Manager processar a mensagem
+                            lig4Manager.ProcessarMensagemRecebida(captured);
                         });
                     }
-                }
-                catch (Exception ex)
-                {
-                    Debug.Log("Erro leitura cliente: " + ex.Message);
-                    break;
+                    sb.Clear();
+                    sb.Append(all);
                 }
             }
-        }
-        catch (SocketException ex)
-        {
-            Debug.Log("Erro cliente (conexão): " + ex.Message);
-        }
-        finally
-        {
-            Fechar();
-        }
+            catch (Exception ex)
+            {
+                Debug.LogError("Erro cliente: " + ex);
+            }
+        });
+        threadEscuta.IsBackground = true;
+        threadEscuta.Start();
     }
 
+    // Chamado pelo Lig4Manager quando o cliente (local) joga e precisa enviar ao servidor
     public void EnviarJogada(int coluna)
     {
-        try
-        {
-            if (stream != null && stream.CanWrite)
-            {
-                byte[] dados = Encoding.UTF8.GetBytes(coluna.ToString());
-                stream.Write(dados, 0, dados.Length);
-                stream.Flush();
-                Debug.Log("Enviado para servidor: " + coluna);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.Log("Erro ao enviar (cliente): " + ex.Message);
-        }
+        SendToServer($"{coluna}\n");
     }
 
-    public void EnviarMensagem(string mensagem)
+    // Opcional: notificacao explícita de vitoria (normalmente o servidor envia)
+    public void EnviarVitoria(int jogador)
+    {
+        SendToServer($"WIN|{jogador}\n");
+    }
+
+    public void SendToServer(string mensagem)
     {
         try
         {
-            if (stream != null && stream.CanWrite)
-            {
-                byte[] dados = Encoding.UTF8.GetBytes(mensagem);
-                stream.Write(dados, 0, dados.Length);
-                stream.Flush();
-                Debug.Log("Enviado para servidor: " + mensagem);
-            }
+            if (stream == null) { Debug.LogWarning("Stream nulo, não conectado."); return; }
+            byte[] data = Encoding.UTF8.GetBytes(mensagem);
+            stream.Write(data, 0, data.Length);
+            stream.Flush();
+            Debug.Log("Cliente enviou: " + mensagem.Trim());
         }
         catch (Exception ex)
         {
-            Debug.Log("Erro ao enviar mensagem (cliente): " + ex.Message);
+            Debug.LogError("Erro envio cliente: " + ex);
         }
-    }
-
-    void Fechar()
-    {
-        rodando = false;
-        try { stream?.Close(); } catch { }
-        try { cliente?.Close(); } catch { }
     }
 
     private void OnApplicationQuit()
     {
-        Fechar();
-        try { threadReceber?.Interrupt(); } catch { }
+        try { stream?.Close(); client?.Close(); }
+        catch { }
     }
 }
+
