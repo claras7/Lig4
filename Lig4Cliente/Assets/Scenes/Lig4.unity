@@ -1290,8 +1290,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 61462df9914e50447bf79e2d0a2f2dd1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  pecaJogador1: {fileID: 1294410569580857714, guid: b01b6b31a142790458c85f09823ae771, type: 3}
-  pecaJogador2: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
+  pecaJogador1: {fileID: 6563420932972251983, guid: 0b8c1d23690d24748941295488fcc53d, type: 3}
+  pecaJogador2: {fileID: 1294410569580857714, guid: b01b6b31a142790458c85f09823ae771, type: 3}
   boardPanel: {fileID: 1660338202}
   textoStatus: {fileID: 2043139647}
   tcpServer: {fileID: 0}
@@ -4653,7 +4653,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: af46bebb663be2f4b9397f060949c395, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ipServidor: 127.0.0.1
+  ipServidor: 10.56.2.144
   porta: 7777
   lig4Manager: {fileID: 567251636}
 --- !u!1001 &1782332795
