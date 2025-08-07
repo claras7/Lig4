@@ -50,7 +50,6 @@ public class TcpClientLig4 : MonoBehaviour
                         var captured = line;
                         UnityMainThreadDispatcher.Instance()?.Enqueue(() =>
                         {
-                            // Delegate para o Lig4Manager processar a mensagem
                             lig4Manager.ProcessarMensagemRecebida(captured);
                         });
                     }
@@ -66,6 +65,8 @@ public class TcpClientLig4 : MonoBehaviour
         threadEscuta.IsBackground = true;
         threadEscuta.Start();
     }
+
+          
 
     // Chamado pelo Lig4Manager quando o cliente (local) joga e precisa enviar ao servidor
     public void EnviarJogada(int coluna)
