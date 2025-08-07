@@ -343,4 +343,4 @@ public class Lig4Manager : MonoBehaviour
     {
         return jogador == 1 ? "Amarelo" : "Vermelho";
     }
-}
+}  
