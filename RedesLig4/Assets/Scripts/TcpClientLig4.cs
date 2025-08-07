@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class TcpClientLig4 : MonoBehaviour
 {
-    public string ipServidor = "127.0.0.1";
+    public string ipServidor = "192.168.72.1";
     public int porta = 7777;
     private TcpClient client;
     private NetworkStream stream;
