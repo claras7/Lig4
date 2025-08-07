@@ -36,7 +36,11 @@ public class TcpClientLig4 : MonoBehaviour
                 while (true)
                 {
                     int bytes = stream.Read(buffer, 0, buffer.Length);
-                    if (bytes == 0) { Debug.Log("Servidor desconectou."); break; }
+                    if (bytes == 0)
+                    {
+                        Debug.Log("Servidor desconectou.");
+                        break;
+                    }
                     string msg = Encoding.UTF8.GetString(buffer, 0, bytes);
                     Debug.Log("Cliente recebeu bruto: " + msg);
 
@@ -66,8 +70,6 @@ public class TcpClientLig4 : MonoBehaviour
         threadEscuta.Start();
     }
 
-          
-
     // Chamado pelo Lig4Manager quando o cliente (local) joga e precisa enviar ao servidor
     public void EnviarJogada(int coluna)
     {
@@ -80,11 +82,16 @@ public class TcpClientLig4 : MonoBehaviour
         SendToServer($"WIN|{jogador}\n");
     }
 
+    // Método base que envia a mensagem para o servidor
     public void SendToServer(string mensagem)
     {
         try
         {
-            if (stream == null) { Debug.LogWarning("Stream nulo, não conectado."); return; }
+            if (stream == null)
+            {
+                Debug.LogWarning("Stream nulo, não conectado.");
+                return;
+            }
             byte[] data = Encoding.UTF8.GetBytes(mensagem);
             stream.Write(data, 0, data.Length);
             stream.Flush();
@@ -96,10 +103,19 @@ public class TcpClientLig4 : MonoBehaviour
         }
     }
 
+    // Novo método para enviar mensagens arbitrárias (ex: RESET)
+    public void EnviarMensagem(string mensagem)
+    {
+        SendToServer(mensagem);
+    }
+
     private void OnApplicationQuit()
     {
-        try { stream?.Close(); client?.Close(); }
+        try
+        {
+            stream?.Close();
+            client?.Close();
+        }
         catch { }
     }
 }
-

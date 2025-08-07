@@ -55,12 +55,16 @@ public class TcpServerLig4 : MonoBehaviour
             try
             {
                 int bytes = stream.Read(buffer, 0, buffer.Length);
-                if (bytes == 0) { Debug.Log("Cliente desconectou."); break; }
+                if (bytes == 0)
+                {
+                    Debug.Log("Cliente desconectou.");
+                    break;
+                }
                 string msg = Encoding.UTF8.GetString(buffer, 0, bytes);
                 Debug.Log("Servidor recebeu bruto: " + msg);
 
                 sb.Append(msg);
-                // processa mensagens terminadas em '\n'
+
                 string all = sb.ToString();
                 int idx;
                 while ((idx = all.IndexOf('\n')) >= 0)
@@ -70,8 +74,6 @@ public class TcpServerLig4 : MonoBehaviour
                     var captured = line;
                     UnityMainThreadDispatcher.Instance()?.Enqueue(() =>
                     {
-                        // Nesse projeto: o Lig4Manager espera receber apenas a coluna (ex: "3")
-                        // ou mensagens especiais como "WIN|1"
                         lig4Manager.ProcessarMensagemRecebida(captured);
                     });
                 }
@@ -98,11 +100,21 @@ public class TcpServerLig4 : MonoBehaviour
         SendToClient($"WIN|{jogador}\n");
     }
 
+    // Método base que envia mensagem arbitrária para o cliente (ex: RESET)
+    public void EnviarMensagem(string mensagem)
+    {
+        SendToClient(mensagem);
+    }
+
     public void SendToClient(string mensagem)
     {
         try
         {
-            if (stream == null) { Debug.LogWarning("Stream nulo (cliente não conectado)."); return; }
+            if (stream == null)
+            {
+                Debug.LogWarning("Stream nulo (cliente não conectado).");
+                return;
+            }
             byte[] data = Encoding.UTF8.GetBytes(mensagem);
             stream.Write(data, 0, data.Length);
             stream.Flush();
@@ -116,8 +128,12 @@ public class TcpServerLig4 : MonoBehaviour
 
     private void OnApplicationQuit()
     {
-        try { stream?.Close(); clienteConectado?.Close(); listener?.Stop(); }
+        try
+        {
+            stream?.Close();
+            clienteConectado?.Close();
+            listener?.Stop();
+        }
         catch { }
     }
 }
-

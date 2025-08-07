@@ -97,15 +97,9 @@ public class Lig4Manager : MonoBehaviour
                 // Verifica se ganhou
                 if (VerificarVitoria(linha, coluna, jogador))
                 {
-                    // IMPORTANTE: enviar a jogada **antes** de retornar, para que o outro lado
-                    // receba a peça final e também finalize a partida.
                     if (enviarParaRede)
                     {
                         EnviarJogada(coluna);
-
-                        // Opcional: enviar mensagem explícita de vitória (redundância)
-                        // Se preferir, comente a linha abaixo. Os scripts TcpServer/Client
-                        // já têm EnviarVitoria(jogador).
                         if (jogadorLocal == 1 && tcpServer != null) tcpServer.EnviarVitoria(jogador);
                         if (jogadorLocal == 2 && tcpClient != null) tcpClient.EnviarVitoria(jogador);
                     }
@@ -120,21 +114,18 @@ public class Lig4Manager : MonoBehaviour
                 // Verifica empate
                 if (VerificarEmpate())
                 {
-                    // enviar empate é opcional; aqui apenas atualiza local e desliga
                     textoStatus.text = "Empate!";
                     jogoAtivo = false;
                     DesabilitarBotoes();
-                    if (enviarParaRede) EnviarJogada(coluna); // envia a última peça mesmo em empate
+                    if (enviarParaRede) EnviarJogada(coluna); 
                     return;
                 }
 
-                // Se for jogada local, envia para o outro
                 if (enviarParaRede)
                 {
                     EnviarJogada(coluna);
                 }
 
-                // Troca turno *depois* de processar tudo
                 jogadorAtual = 3 - jogador;
 
                 AtualizarTextoStatus();
@@ -146,7 +137,6 @@ public class Lig4Manager : MonoBehaviour
         Debug.Log("Coluna cheia.");
     }
 
-    // Recebe jogada remota
     public void FazerJogadaRemota(int coluna)
     {
         if (!jogoAtivo) return;
@@ -154,11 +144,9 @@ public class Lig4Manager : MonoBehaviour
         int jogadorRemoto = jogadorLocal == 1 ? 2 : 1;
         Debug.Log($"FazerJogadaRemota chamada! coluna = {coluna} jogadorRemoto = {jogadorRemoto}");
 
-        // Não reenviamos (enviarParaRede = false)
         FazerJogadaLocal(coluna, false, jogadorRemoto);
     }
 
-    // Envia jogada para o outro jogador via rede
     void EnviarJogada(int coluna)
     {
         if (jogadorLocal == 1)
@@ -187,16 +175,25 @@ public class Lig4Manager : MonoBehaviour
         }
     }
 
-    // --- Processa mensagens vindas da rede (chamado por TcpClient/TcpServer via dispatcher)
-    // Pode receber:
-    //  - "3"            -> coluna 3
-    //  - "WIN|1"        -> vitória jogador 1
-    // Pode vir concatenado; separa por '\n', '\r', ';' e espaços.
+    // *** NOVO MÉTODO ***
+    public void ReiniciarJogo()
+    {
+        ResetarTabuleiro();
+
+        if (jogadorLocal == 1 && tcpServer != null)
+        {
+            tcpServer.EnviarMensagem("RESET\n");
+        }
+        else if (jogadorLocal == 2 && tcpClient != null)
+        {
+            tcpClient.EnviarMensagem("RESET\n");
+        }
+    }
+
     public void ProcessarMensagemRecebida(string mensagem)
     {
         if (string.IsNullOrEmpty(mensagem)) return;
 
-        // Divide por linhas / delimitadores comuns
         string[] tokens = mensagem.Split(new char[] { '\n', '\r', ';', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var t in tokens)
@@ -204,7 +201,13 @@ public class Lig4Manager : MonoBehaviour
             string s = t.Trim();
             if (string.IsNullOrEmpty(s)) continue;
 
-            // Caso WIN|x
+            if (s == "RESET")
+            {
+                Debug.Log("Recebido comando RESET, reiniciando jogo.");
+                ResetarTabuleiro();
+                continue;
+            }
+
             if (s.StartsWith("WIN|"))
             {
                 string[] parts = s.Split('|');
@@ -221,7 +224,6 @@ public class Lig4Manager : MonoBehaviour
                 }
             }
 
-            // Se for um número (coluna)
             if (int.TryParse(s, out int coluna))
             {
                 if (coluna >= 0 && coluna < 7)
@@ -240,11 +242,8 @@ public class Lig4Manager : MonoBehaviour
         }
     }
 
-    // Quando receber WIN do outro lado, aplica estado de vitória aqui
     void AplicarVitoriaRemota(int vencedor)
     {
-        // Pode ser que o último movimento que causou a vitória já tenha sido aplicado
-        // (se vocês receberam a coluna antes). Mas garantir que o painel/status seja mostrado.
         textoStatus.text = $"Jogador {ObterNomeJogador(vencedor)} venceu!";
         jogoAtivo = false;
         DesabilitarBotoes();
@@ -278,10 +277,10 @@ public class Lig4Manager : MonoBehaviour
     {
         int[][] direcoes = new int[][]
         {
-            new int[] {0, 1},   // horizontal
-            new int[] {1, 0},   // vertical
-            new int[] {1, 1},   // diagonal \
-            new int[] {1, -1}   // diagonal /
+            new int[] {0, 1},
+            new int[] {1, 0},
+            new int[] {1, 1},
+            new int[] {1, -1}
         };
 
         foreach (var dir in direcoes)
@@ -311,7 +310,6 @@ public class Lig4Manager : MonoBehaviour
 
     public void ResetarTabuleiro()
     {
-        // Limpa a matriz
         for (int linha = 0; linha < 6; linha++)
         {
             for (int col = 0; col < 7; col++)
@@ -320,7 +318,6 @@ public class Lig4Manager : MonoBehaviour
             }
         }
 
-        // Remove as peças da tela
         foreach (Transform slot in boardPanel)
         {
             foreach (Transform child in slot)
@@ -328,7 +325,6 @@ public class Lig4Manager : MonoBehaviour
                 Destroy(child.gameObject);
             }
 
-            // Reabilita o botão
             Button btn = slot.GetComponent<Button>();
             if (btn != null)
                 btn.interactable = true;

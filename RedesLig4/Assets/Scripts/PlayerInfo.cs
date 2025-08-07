@@ -5,6 +5,6 @@ using UnityEngine;
 
 public static class PlayerInfo
 {
-    public static string CorDoJogador = "AMARELO";
+    public static string CorDoJogador = "VERMELHO";
 }
 
